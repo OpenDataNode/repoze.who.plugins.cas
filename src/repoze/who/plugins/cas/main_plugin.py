@@ -67,7 +67,11 @@ class CASChallengePlugin(FormPluginBase):
 
     # IChallenger
     def challenge(self, environ, status, app_headers, forget_headers):
-
+        locale = environ.get('CKAN_LANG', None)
+        locale_param = ''
+        if locale:
+            locale_param = 'locale={0}&'.format(locale)
+        
         # This challenge consists of logging out
         if environ.has_key('rwpc.logout'):
             log.warn("Headers before logout: " + str(app_headers))
@@ -75,8 +79,9 @@ class CASChallengePlugin(FormPluginBase):
                            if a.lower() != 'location' ]
             log.warn("Headers after logout: " + str(app_headers))
 
-            logout_url = '{cas_url}logout?service={service_url}'.format(
+            logout_url = '{cas_url}logout?{locale}service={service_url}'.format(
                 cas_url=self.cas_url,
+                locale=locale_param,
                 service_url=urllib.quote(environ['rwpc.logout']))
 
             # FIXME: should Location replace the key rwpc.logout?
@@ -89,8 +94,9 @@ class CASChallengePlugin(FormPluginBase):
 
         # Perform a real challenge by redirecting the user to CAS
         else:
-            login_url = '{cas_url}login?service={service_url}'.format(
+            login_url = '{cas_url}login?{locale}service={service_url}'.format(
                 cas_url=self.cas_url,
+                locale=locale_param,
                 service_url=urllib.quote(self._serviceURL(environ)))
 
             log.warn('Login URL: ' + login_url)
