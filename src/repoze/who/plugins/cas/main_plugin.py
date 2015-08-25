@@ -198,6 +198,7 @@ class CASChallengePlugin(FormPluginBase):
                                 processed_attributes[name] =[attribute.text,]
                         result[self.attributes_name] = processed_attributes
 
+                result['ticket'] = ticket
                 return result
 
         else:
