@@ -2,6 +2,8 @@ import ssl
 import logging
 import urllib
 import re
+import sys
+
 from xml.etree import ElementTree
 
 from repoze.who.interfaces import (IChallenger,
@@ -17,9 +19,14 @@ from paste.request import construct_url
 CAS_NAMESPACE = 'http://www.yale.edu/tp/cas'
 CAS_NAMESPACE_PREFIX = '{{{}}}'.format(CAS_NAMESPACE)
 XML_NAMESPACES = {'cas': CAS_NAMESPACE}
-ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-ssl_ctx.verify_mode = ssl.CERT_REQUIRED
-ssl_ctx.load_verify_locations("/etc/ssl/certs/ca-certificates.crt")
+
+def is_python_in_2_7_9():
+    return sys.version[:5] >=  "2.7.9"
+    
+if is_python_in_2_7_9():
+    ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+    ssl_ctx.verify_mode = ssl.CERT_REQUIRED
+    ssl_ctx.load_verify_locations("/etc/ssl/certs/ca-certificates.crt")
 
 log = logging.getLogger(__name__)
 
@@ -173,7 +180,11 @@ class CASChallengePlugin(FormPluginBase):
                                        service_url=service_url[:service_url.index('%3F')],
                                        ticket=urllib.quote(ticket))
 
-        response = urllib.urlopen(validate_url, context=ssl_ctx).read()
+        if is_python_in_2_7_9():
+            response = urllib.urlopen(validate_url, context=ssl_ctx).read()
+        else:
+            response = urllib.urlopen(validate_url).read()
+            
         log.warn('Validation response: ' + response)
 
         if self.cas_version >= 2.0:
