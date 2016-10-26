@@ -177,7 +177,7 @@ class CASChallengePlugin(FormPluginBase):
 
         service_url = urllib.quote(self._serviceURL(environ, urllib.urlencode(query)))
         validate_url = base_url.format(cas_url=self.cas_url,
-                                       service_url=service_url,
+                                       service_url=service_url[:service_url.index('%3F')],
                                        ticket=urllib.quote(ticket))
 
         if is_python_in_2_7_9():
