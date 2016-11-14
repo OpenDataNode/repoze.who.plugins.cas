@@ -1,7 +1,9 @@
-
+import ssl
 import logging
 import urllib
 import re
+import sys
+
 from xml.etree import ElementTree
 
 from repoze.who.interfaces import (IChallenger,
@@ -17,6 +19,14 @@ from paste.request import construct_url
 CAS_NAMESPACE = 'http://www.yale.edu/tp/cas'
 CAS_NAMESPACE_PREFIX = '{{{}}}'.format(CAS_NAMESPACE)
 XML_NAMESPACES = {'cas': CAS_NAMESPACE}
+
+def is_python_in_2_7_9():
+    return sys.version[:5] >=  "2.7.9"
+    
+if is_python_in_2_7_9():
+    ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+    ssl_ctx.verify_mode = ssl.CERT_REQUIRED
+    ssl_ctx.load_verify_locations("/etc/ssl/certs/ca-certificates.crt")
 
 log = logging.getLogger(__name__)
 
@@ -74,10 +84,10 @@ class CASChallengePlugin(FormPluginBase):
         
         # This challenge consists of logging out
         if environ.has_key('rwpc.logout'):
-            log.warn("Headers before logout: " + str(app_headers))
+            log.debug("Headers before logout: " + str(app_headers))
             app_headers = [(a, b) for a, b in app_headers \
                            if a.lower() != 'location' ]
-            log.warn("Headers after logout: " + str(app_headers))
+            log.debug("Headers after logout: " + str(app_headers))
 
             logout_url = '{cas_url}logout?{locale}service={service_url}'.format(
                 cas_url=self.cas_url,
@@ -88,7 +98,7 @@ class CASChallengePlugin(FormPluginBase):
             headers = [('Location', logout_url)]
             headers = headers + app_headers + forget_headers
 
-            log.warn("Logout headers: " + str(headers))
+            log.debug("Logout headers: " + str(headers))
 
             return HTTPFound(headers=headers)
 
@@ -99,7 +109,7 @@ class CASChallengePlugin(FormPluginBase):
                 locale=locale_param,
                 service_url=urllib.quote(self._serviceURL(environ)))
 
-            log.warn('Login URL: ' + login_url)
+            log.debug('Login URL: ' + login_url)
 
             headers = [('Location', login_url)]
             cookies = [(h,v) for (h,v) in app_headers \
@@ -138,7 +148,7 @@ class CASChallengePlugin(FormPluginBase):
             if path.match(uri):
                 # Trigger a challenge and tell challenge this is a
                 # logout, passing the service URL to CAS
-                log.warn('Logout called')
+                log.debug('Logout called')
                 environ['rwpc.logout'] = \
                         self._serviceURL(environ, urllib.urlencode(query))
                 return
@@ -146,13 +156,13 @@ class CASChallengePlugin(FormPluginBase):
         #Skip any path that matches the configuration
         for path in self.path_toskip:
             if path.match(uri):
-                log.warn('Skipping path: {}'.format(uri))
+                log.debug('Skipping path: {}'.format(uri))
                 return
 
         #Check the CAS validation ticket
         ticket = query.pop('ticket', None)
         if ticket:
-            log.warn("Retrieving credentials: validating against CAS")
+            log.debug("Retrieving credentials: validating against CAS")
             credentials = self._validate(ticket, environ, query)
             return credentials
 
@@ -170,8 +180,12 @@ class CASChallengePlugin(FormPluginBase):
                                        service_url=service_url[:service_url.index('%3F')],
                                        ticket=urllib.quote(ticket))
 
-        response = urllib.urlopen(validate_url).read()
-        log.warn('Validation response: ' + response)
+        if is_python_in_2_7_9():
+            response = urllib.urlopen(validate_url, context=ssl_ctx).read()
+        else:
+            response = urllib.urlopen(validate_url).read()
+            
+        log.debug('Validation response: ' + response)
 
         if self.cas_version >= 2.0:
             #CAS 2.0 validates with an XML-fragment response. See
